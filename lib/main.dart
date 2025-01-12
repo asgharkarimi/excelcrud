@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:excel/excel.dart' as excel; // Use prefix 'excel'
 import 'package:flutter/services.dart'; // For rootBundle
 import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:url_launcher/url_launcher.dart'; // For launching phone dialer
 
 void main() {
   runApp(MyApp());
@@ -92,17 +93,20 @@ class _ExcelFromAssetsPageState extends State<ExcelFromAssetsPage> {
   void _filterData(String query) {
     setState(() {
       _filteredData = _data.where((row) {
-        // Search in the 'نام' (column 3), 'نام خانوادگی' (column 4),
-        // 'دهستان' (column 19), and 'نام روستا' (column 20)
-        String name = row[3].toString().toLowerCase();
-        String lastName = row[4].toString().toLowerCase();
+        // Convert all searchable fields to lowercase for case-insensitive comparison
+        String name = row[3].toString().toLowerCase(); // نام
+        String lastName = row[4].toString().toLowerCase(); // نام خانوادگی
         String dehestan = row[19].toString().toLowerCase(); // دهستان
         String villageName = row[20].toString().toLowerCase(); // نام روستا
 
-        return name.contains(query.toLowerCase()) ||
-            lastName.contains(query.toLowerCase()) ||
-            dehestan.contains(query.toLowerCase()) ||
-            villageName.contains(query.toLowerCase());
+        // Convert the query to lowercase for case-insensitive comparison
+        String lowercaseQuery = query.toLowerCase();
+
+        // Check if any of the fields contain the query as a substring
+        return name.contains(lowercaseQuery) ||
+            lastName.contains(lowercaseQuery) ||
+            dehestan.contains(lowercaseQuery) ||
+            villageName.contains(lowercaseQuery);
       }).toList();
     });
   }
@@ -129,7 +133,7 @@ class _ExcelFromAssetsPageState extends State<ExcelFromAssetsPage> {
                   borderRadius: BorderRadius.circular(10.0),
                 ),
               ),
-              onChanged: _filterData, // Filter data as the user types
+              onChanged: _filterData, // Call _filterData whenever the text changes
             ),
           ),
           // ListView
@@ -140,89 +144,49 @@ class _ExcelFromAssetsPageState extends State<ExcelFromAssetsPage> {
               itemCount: _filteredData.length,
               itemBuilder: (context, index) {
                 var row = _filteredData[index];
-                // Check if the item is the first one (index == 0)
-                if (index == 0) {
-                  // Render the first item without onTap functionality
-                  return Card(
-                    margin: EdgeInsets.all(8.0),
-                    child: ListTile(
-                      title: Directionality(
-                        textDirection: TextDirection.rtl, // Set RTL for the row
-                        child: Row(
-                          children: [
-                            Expanded(
-                              flex: 2,
-                              child: Text(
-                                row[3].toString(), // Displaying the 'نام' column
-                                style: TextStyle(fontWeight: FontWeight.bold),
-                              ),
+                // Render all items with onTap functionality
+                return Card(
+                  margin: EdgeInsets.all(8.0),
+                  child: ListTile(
+                    title: Directionality(
+                      textDirection: TextDirection.rtl, // Set RTL for the row
+                      child: Row(
+                        children: [
+                          Expanded(
+                            flex: 2,
+                            child: Text(
+                              row[3].toString(), // Displaying the 'نام' column
+                              style: TextStyle(fontWeight: FontWeight.bold),
                             ),
-                            Expanded(
-                              flex: 2,
-                              child: Text(
-                                row[4].toString(), // Displaying the 'نام خانوادگی' column
-                                style: TextStyle(fontWeight: FontWeight.bold),
-                              ),
-                            ),
-                            Expanded(
-                              flex: 2,
-                              child: Text(
-                                row[1].toString(), // Displaying the 'کد ملی' column
-                                style: TextStyle(fontWeight: FontWeight.bold),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      // Disable onTap for the first item
-                      onTap: null,
-                    ),
-                  );
-                } else {
-                  // Render other items with onTap functionality
-                  return Card(
-                    margin: EdgeInsets.all(8.0),
-                    child: ListTile(
-                      title: Directionality(
-                        textDirection: TextDirection.rtl, // Set RTL for the row
-                        child: Row(
-                          children: [
-                            Expanded(
-                              flex: 2,
-                              child: Text(
-                                row[3].toString(), // Displaying the 'نام' column
-                                style: TextStyle(fontWeight: FontWeight.bold),
-                              ),
-                            ),
-                            Expanded(
-                              flex: 2,
-                              child: Text(
-                                row[4].toString(), // Displaying the 'نام خانوادگی' column
-                                style: TextStyle(fontWeight: FontWeight.bold),
-                              ),
-                            ),
-                            Expanded(
-                              flex: 2,
-                              child: Text(
-                                row[1].toString(), // Displaying the 'کد ملی' column
-                                style: TextStyle(fontWeight: FontWeight.bold),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      onTap: () {
-                        // Navigate to the detail page when a row is clicked
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => DetailPage(userData: row),
                           ),
-                        );
-                      },
+                          Expanded(
+                            flex: 2,
+                            child: Text(
+                              row[4].toString(), // Displaying the 'نام خانوادگی' column
+                              style: TextStyle(fontWeight: FontWeight.bold),
+                            ),
+                          ),
+                          Expanded(
+                            flex: 2,
+                            child: Text(
+                              row[1].toString(), // Displaying the 'کد ملی' column
+                              style: TextStyle(fontWeight: FontWeight.bold),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
-                  );
-                }
+                    onTap: () {
+                      // Navigate to the detail page when a row is clicked
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => DetailPage(userData: row),
+                        ),
+                      );
+                    },
+                  ),
+                );
               },
             ),
           ),
@@ -238,6 +202,16 @@ class DetailPage extends StatelessWidget {
 
   DetailPage({required this.userData});
 
+  // Function to launch the phone dialer
+  Future<void> _launchPhoneDialer(String phoneNumber) async {
+    final Uri phoneUri = Uri(scheme: 'tel', path: phoneNumber);
+    if (await canLaunch(phoneUri.toString())) {
+      await launch(phoneUri.toString());
+    } else {
+      throw 'Could not launch $phoneUri';
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Directionality(
@@ -248,18 +222,54 @@ class DetailPage extends StatelessWidget {
         ),
         body: Padding(
           padding: const EdgeInsets.all(16.0),
-          child: ListView(
+          child: Column(
             children: [
-              _buildDetailCard('نام', userData[3].toString()),
-              _buildDetailCard('نام خانوادگی', userData[4].toString()),
-              _buildDetailCard('کد ملی', userData[1].toString()),
-              _buildDetailCard('تاریخ تولد', userData[5].toString()),
-              _buildDetailCard('شماره همراه', userData[2].toString()),
-              _buildDetailCard('آدرس', userData[17].toString()),
-              _buildDetailCard('استان', userData[16].toString()),
-              _buildDetailCard('شهرستان', userData[18].toString()),
-              _buildDetailCard('دهستان', userData[19].toString()),
-              _buildDetailCard('روستا', userData[20].toString()),
+              Expanded(
+                child: ListView(
+                  children: [
+                    _buildDetailCard('نام', userData[3].toString()),
+                    _buildDetailCard('نام خانوادگی', userData[4].toString()),
+                    _buildDetailCard('کد ملی', userData[1].toString()),
+                    _buildDetailCard('تاریخ تولد', userData[5].toString()),
+                    // Make the phone number clickable
+                    GestureDetector(
+                      onTap: () {
+                        _launchPhoneDialer(
+                            userData[2].toString()); // Launch phone dialer
+                      },
+                      child: _buildDetailCard(
+                          'شماره همراه', userData[2].toString()),
+                    ),
+                    _buildDetailCard('آدرس', userData[17].toString()),
+                    _buildDetailCard('استان', userData[16].toString()),
+                    _buildDetailCard('شهرستان', userData[18].toString()),
+                    _buildDetailCard('دهستان', userData[19].toString()),
+                    _buildDetailCard('روستا', userData[20].toString()),
+                  ],
+                ),
+              ),
+              // Add a green "تماس" button at the bottom
+              SizedBox(
+                width: double.infinity, // Make the button full width
+                child: ElevatedButton(
+                  onPressed: () {
+                    _launchPhoneDialer(
+                        userData[2].toString()); // Call the phone number
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.green, // Green background
+                    foregroundColor: Colors.white, // White text
+                    padding: EdgeInsets.symmetric(vertical: 16), // Add padding
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8), // Rounded corners
+                    ),
+                  ),
+                  child: Text(
+                    'تماس',
+                    style: TextStyle(fontSize: 18),
+                  ),
+                ),
+              ),
             ],
           ),
         ),
